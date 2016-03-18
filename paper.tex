@@ -1,0 +1,288 @@
+% Paper structure:
+%
+% Introduction
+%  - Presentation of the ontology.
+%  - Example of a guideline.
+%  - What is an annotated table?
+%  - Motivating example.
+%
+% Proposal
+%  - Formalization of a guideline using SPARQL queries
+%  - Extending the ontology to represent constraints
+%  - Implementation
+%  - Experimentation
+%  - Related work
+%  - Conclusions
+%  - Future work
+%    - Represent positive constraints for classification purposes
+
+\documentclass[a4paper, 10pt]{article}
+\usepackage[margin=1.5in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage{amssymb}
+\usepackage{hyperref} % Needed for \href
+\usepackage{xspace} % Needed for \xspace
+\usepackage{graphicx} % Needed for \includegraphics
+\usepackage{float} % Needed for figures with the H placement specifier
+\usepackage{parskip} % Prevents itemize blocks from being affected when
+                     % overriding \parskip
+
+% Utility macros
+\newcommand{\atweb}{\textbf{@Web}\xspace}
+\newcommand{\nary}{$n$-ary\xspace}
+\newcommand{\fnhref}[2]{\href{#2}{#1}\footnote{\url{#2}}}
+\newcommand{\ifnhref}[2]{\textit{\fnhref{#1}{#2}}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\img}[3]{
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{img/#1}
+    \caption{#2}
+    \label{#3}
+  \end{figure}
+}
+
+% Paragraph formatting
+\setlength{\parskip}{1em}
+
+% Prevent hyphenation
+\tolerance=1
+\emergencystretch=\maxdimen
+\hyphenpenalty=10000
+\hbadness=10000
+
+% Bullets in nested \itemize environments
+\renewcommand{\labelitemii}{$\circ$}
+\renewcommand{\labelitemiii}{---}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\begin{abstract}
+  In this paper we study the use of SPARQL queries to verify a set of integrity
+  constraints in an ontology dedicated to the annotation of experimental data
+  in biorefinery, packaging and other domains.
+
+  \vspace{1em}
+
+  \textbf{Keywords}: Semantic Web, RDF, OWL, SPARQL, Integrity constraints.
+\end{abstract}
+
+\section{Introduction}
+
+The \ifnhref{@Web platform}{https://www6.inra.fr/cati-icat-atweb} is a Semantic
+Web application that allows domain experts to annotate experimental data in
+scientific documents, and researchers to explore and query those annotations
+via a graphical user interface. The annotations are stored in a publicly
+accessible \ifnhref{RDF}{http://www.w3.org/TR/rdf11-primer/} graph using a
+vocabulary predefined in an \ifnhref{OWL}{http://www.w3.org/TR/owl-primer/}
+ontology, and shared with the research community.
+
+Given the error-prone nature of the data annotation process, a set of integrity
+constraints has been identified that all annotated data must fulfill. It is
+desired to validate these constraints automatically and report any validation
+errors to the domain expert during the data annotation process.
+
+To this end, we first surveyed the current W3C recommendations for constraining
+the contents of RDF graphs, and the available tools implementing these
+recommendations. We decided to focus our analysis on
+\ifnhref{SPARQL}{http://www.w3.org/TR/sparql11-query/}, \ifnhref{Shape
+Expressions}{http://www.w3.org/2013/ShEx/Primer} and
+\ifnhref{SHACL}{http://www.w3.org/TR/shacl/}. We then implemented a set of test
+constraints using each of the available tools and compared them according to
+expressiveness, verbosity, readability, etc.
+
+Our analysis shows that none of the libraries implementing the Shape
+Expressions recommendation fully support all our use cases. We also observe
+that certain constraints expressed in SHACL require nesting SPARQL queries that
+are comparable in length to stand-alone SPARQL queries implementing those same
+constraints, thus defeating the purpose of an alternate constraint language.
+
+We finish our analysis by comparing the running times of a set of test
+constraints implemented as SPARQL queries against different triple stores
+supported by \ifnhref{Jena}{https://jena.apache.org/}, a Java library for
+building Semantic Web applications which is already used in @Web for other
+purposes.
+
+
+\subsection{The \atweb platform}
+
+The \atweb platform is a software system that allows researchers to extract
+heterogeneous experimental data from tables in scientific publications (such as
+papers, articles, CSV files, etc.) and store it in an RDF graph following a
+uniform structure. The platform provides access to the RDF graph and also
+graphical tools to explore and query the data.
+
+Some typical examples of data extracted from scientific publications using the \atweb platform include input and output parameters associated to a
+milling operation in a multi-step biorefinery experiment, the kind of biomass
+associated to that experiment, chemical properties such as glucose rate, oxygen permeability, etc.
+
+
+\subsection{Ontology}
+\label{sec:ontology}
+
+Internally, \atweb stores data in an RDF graph following a vocabulary defined
+in an OWL ontology. In this ontology, a model for \nary relations in
+quantitative experimental data is established. Under this model, \nary
+relations have one or more input parameters controlling various aspects of the
+experiment, and exactly one output parameter.
+
+Conceptually, the ontology can actually be thought of as two separate
+ontologies:
+
+\begin{itemize}
+  \item a core ontology, where a \textit{Relation} OWL class is defined, along
+    with object properties \textit{hasInput} and \textit{hasOutput},
+    cardinality constraints (each relation has one or more input parameters and
+    exactly one output parameter), etc.
+
+  \item a domain ontology with \textit{Relation} subclasses for each kind of
+    experimental data relevant for a particular domain. Some examples in the
+    biorefinery domain include milling processes, extrusion processes,
+    enzymatic treatments, etc.
+\end{itemize}
+
+A number of additional concepts are defined in both ontologies such as
+magnitudes and units of measurement, but for the sake of brevity we won't
+elaborate any further.
+
+\autoref{fig:relation} shows an example of an \nary relation representing a
+milling step in an experiment in the biorefinery domain.
+
+
+\img{relation.jpg}
+    {
+      \textit{Milling solid quantity output} relation: an example of an \nary
+      relation in \atweb.
+    }
+    {fig:relation}
+
+Finally, the \atweb platform uses concepts defined in an auxiliary OWL ontology
+to store metadata associated to scientific publications such as document title,
+authors, table title and number, etc.
+
+
+\subsection{Annotated tables}
+
+The screenshot in \autoref{fig:annotated-table} illustrates a typical annotated
+table in the \atweb platform after it's been extracted from a scientific
+publication, which in this case belongs to the biorefinery domain.
+
+\img{annotated-table.jpg}
+    {An example of an annotated table in \atweb.}
+    {fig:annotated-table}
+
+The table contains data from 4 different experiments (see column
+\textit{Experience number}), each composed of many steps (see column
+\textit{Process step number}). Each row in this table represents a step in an
+experiment, and for each row there is an instance of an \nary relation in the
+underlying RDF graph. Rows 1 and 3, for example, correspond to cutting milling
+and wet disk milling steps, respectively, and both are associated with
+instances of the \textit{milling solid quantity output} relation.
+
+
+\subsection{Guidelines}
+
+In the \atweb platform, each relation is associated with a set of guidelines
+written in natural language. These guidelines explain the kinds of experiments
+a relation is meant to represent and in many cases provide a number of rules
+that all instances of a relation are supposed to fulfill.
+
+\autoref{fig:guideline} shows capture of the screen in \atweb where an
+annotator can read the guidelines associated to the \textit{milling solid
+quantity output} relation, introduced in \autoref{sec:ontology}.
+
+\img{guideline.jpg}
+    {
+      Guidelines associated to the \textit{milling solid quantity output}
+      relation.
+    }
+    {fig:guideline}
+
+
+\subsection{Integrity constraints}
+
+The guideline highlighted in yellow in \autoref{fig:guideline} represents
+a rule that must be valid for all instances of the \textit{milling solid output quantity} relation. We call this kind of rule an \textit{integrity constraint}.
+
+In most cases, integrity constraints can be stated formally as mathematical
+equations or pseudocode. To show this, the guideline in \autoref{fig:guideline}
+highlighted in yellow is transcribed below, followed by a possible
+formalization as a mathematical equation.
+
+Guideline:
+
+\begin{center}
+  \textit{``The output quantity of a step is equal to the sum of the quantity
+  of water used and the quantity of biomass present in the step.''}
+\end{center}
+
+Equation:
+
+\begin{center}
+  $output = waterInput + biomassInput$
+\end{center}
+
+Once a guideline is stated formally, it should be possible to verify
+automatically whether it is being fulfilled by an instance of its associated
+relation.
+
+
+\subsection{Problem statement}
+
+The goal of this work is, therefore, to identify a technology that allows expressing integrity constraints in a formal way, and automatically verifying whether an \nary relation instance satisfies an integrity constraint.
+
+
+\section{Proposed solution}
+
+Pending.
+
+
+\subsection{Formalization of a guideline using SPARQL queries}
+
+Pending.
+
+
+\subsection{Extending the ontology to represent constraints}
+
+Pending.
+
+
+\subsection{Implementation}
+
+Pending.
+
+
+\subsection{Experimentation}
+
+Pending.
+
+
+\subsection{Related work}
+
+Pending.
+
+
+\section{Conclusions}
+
+Pending.
+
+
+\section{Future work}
+
+Pending.
+
+
+% \begin{thebibliography}{9}
+%
+% \bibitem{lamport94}
+%   Leslie Lamport,
+%   \emph{\LaTeX: a document preparation system},
+%   Addison Wesley, Massachusetts,
+%   2nd edition,
+%   1994.
+%
+% \end{thebibliography}
+
+\end{document}
