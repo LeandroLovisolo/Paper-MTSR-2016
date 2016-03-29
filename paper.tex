@@ -23,7 +23,10 @@
 \usepackage{hyperref} % Needed for \href
 \usepackage{xspace} % Needed for \xspace
 \usepackage{graphicx} % Needed for \includegraphics
+\usepackage{listings} % Needed for the lstlisting environment
+\usepackage{caption} % Needed for \captionsetup
 \usepackage{float} % Needed for figures with the H placement specifier
+\usepackage[textsize=tiny, textwidth=8em]{todonotes} % Needed for \todo
 \usepackage{parskip} % Prevents itemize blocks from being affected when
                      % overriding \parskip
 
@@ -55,6 +58,14 @@
 \renewcommand{\labelitemii}{$\circ$}
 \renewcommand{\labelitemiii}{---}
 
+% lstlisting environment appearance
+\lstset{
+  basicstyle=\ttfamily\small,
+  escapeinside={(*@}{@*)},
+  numbers=left
+}
+\captionsetup[lstlisting]{position=bottom}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{document}
@@ -70,6 +81,7 @@
 \end{abstract}
 
 \section{Introduction}
+\label{sec:introduction}
 
 The \ifnhref{@Web platform}{https://www6.inra.fr/cati-icat-atweb} is a Semantic
 Web application that allows domain experts to annotate experimental data in
@@ -84,6 +96,13 @@ constraints has been identified that all annotated data must fulfill. It is
 desired to validate these constraints automatically and report any validation
 errors to the domain expert during the data annotation process.
 
+\todo{
+  Do we really need to mention the comparison we did between SPARQL, SHACL and
+  Shape Expressions? \\
+  \vspace{1em}
+  Shouldn't we focus on SPARQL instead and leave out the details on why we
+  chose SPARQL over the other alternatives?
+}
 To this end, we first surveyed the current W3C recommendations for constraining
 the contents of RDF graphs, and the available tools implementing these
 recommendations. We decided to focus our analysis on
@@ -114,9 +133,11 @@ papers, articles, CSV files, etc.) and store it in an RDF graph following a
 uniform structure. The platform provides access to the RDF graph and also
 graphical tools to explore and query the data.
 
-Some typical examples of data extracted from scientific publications using the \atweb platform include input and output parameters associated to a
-milling operation in a multi-step biorefinery experiment, the kind of biomass
-associated to that experiment, chemical properties such as glucose rate, oxygen permeability, etc.
+Some typical examples of data extracted from scientific publications using the
+\atweb platform include input and output parameters associated to a milling
+operation in a multi-step biorefinery experiment, the kind of biomass
+associated to that experiment, chemical properties such as glucose rate, oxygen
+permeability, etc.
 
 
 \subsection{Ontology}
@@ -202,9 +223,11 @@ quantity output} relation, introduced in \autoref{sec:ontology}.
 
 
 \subsection{Integrity constraints}
+\label{sec:integrity-constraints}
 
 The guideline highlighted in yellow in \autoref{fig:guideline} represents
-a rule that must be valid for all instances of the \textit{milling solid output quantity} relation. We call this kind of rule an \textit{integrity constraint}.
+a rule that must be valid for all instances of the \textit{milling solid output
+quantity} relation. We call this kind of rule an \textit{integrity constraint}.
 
 In most cases, integrity constraints can be stated formally as mathematical
 equations or pseudocode. To show this, the guideline in \autoref{fig:guideline}
@@ -228,20 +251,178 @@ Once a guideline is stated formally, it should be possible to verify
 automatically whether it is being fulfilled by an instance of its associated
 relation.
 
-
 \subsection{Problem statement}
 
-The goal of this work is, therefore, to identify a technology that allows expressing integrity constraints in a formal way, and automatically verifying whether an \nary relation instance satisfies an integrity constraint.
+The goal of this work is, therefore, to identify a technology or technique that
+allows expressing integrity constraints formally, and automatically verifying
+whether an \nary relation instance satisfies an integrity constraint.
 
 
 \section{Proposed solution}
 
-Pending.
+We propose using SPARQL queries for expressing and verifying integrity
+constraints. Specifically, given an integrity constraint $c$ and its associated
+relation $r$, we propose to express $c$ as a SPARQL query that will select all
+instances of $r$ that do not fulfill $c$.
+
+Our decision to focus on SPARQL was based on the following facts:
+
+\begin{itemize}
+  \item \todo{Refine this list.} most general tool
+  \item mature specification
+  \item well supported, efficient implementations available
+  \item strong community around it
+\end{itemize}
+
+In the following sections we explain in detail our implementation of the
+proposed solution, we give examples of actual integrity constraints expressed
+this way, and we show what the implementation looks like from the \atweb user's
+point of view.
 
 
-\subsection{Formalization of a guideline using SPARQL queries}
+\subsection{Integrity constraints expressed as SPARQL queries}
+\label{sec:integrity-constraints-as-sparql}
 
-Pending.
+In order to make sense of the result set returned by the execution of a SPARQL
+query implementing an integrity constraint, some assumptions have to be made.
+
+\todo{Should we mark this as a definition?} Let $c$ be an integrity constraint
+associated to a relation $r$, and let $q$ be a SPARQL query implementing $c$.
+We make the following assumptions about $q$:
+
+\begin{itemize}
+  \item Each solution in a result set obtained by evaluating $q$ corresponds to
+    exactly one instance of $r$, which we will call $i$.
+
+  \item Each solution in the result set must include a variable
+    \code{relation} which contains the IRI of $i$. All other variables will
+    be ignored.
+
+  \item $i$ must be in violation of $c$.
+
+  \item There's at least one solution in the result set corresponding to each
+    instance of $r$ in violation of $c$.
+\end{itemize}
+
+\todo{Decide if it's worth talking about the structure of queries instead of
+showing a concrete example.}
+SPARQL queries implementing integrity constraints will therefore have a
+structure similar to the example in \autoref{lst:structure-example}.
+
+\begin{minipage}{\textwidth}
+\begin{lstlisting}[label={lst:structure-example},
+                   caption={Structure of a SPARQL query implementing an
+                            integrity constraint.}]
+SELECT ?relation
+WHERE {
+  ?relation a example:MyRelationClass .
+  # ... restrictions go here
+}
+\end{lstlisting}
+\end{minipage}
+
+\todo{Add a concrete toy example. Idea: input parameter must be greater than
+output parameter.} Let's illustrate this with an example. Let $r$ be a relation
+representing ...
+
+
+\subsection{An example of a real integrity constraint implemented as a SPARQL
+query}
+
+In this section we will show how the integrity constraint mentioned in
+\autoref{sec:integrity-constraints} is implemented in the \atweb platform.
+
+Recall from \autoref{sec:integrity-constraints} the integrity constraint in
+question and its mathematical formulation:
+
+\begin{center}
+  \textit{``The output quantity of a step is equal to the sum of the quantity
+  of water used and the quantity of biomass present in the step.''}
+
+  $output = waterInput + biomassInput$
+\end{center}
+
+In order to express this integrity constraint as a SPARQL query we must, first,
+select the nodes in our RDF graph corresponding to the $output$, $waterInput$
+and $biomassInput$ variables in the equation above. \autoref{fig:rdf-graph}
+shows what a subset of our RDF graph containing an instance of the
+\textit{milling solid quantity output} relation would look like. We're
+therefore interested in selecting the nodes painted in a light blue color.
+
+\img{rdf-graph.png}
+    {
+      Subset of an RDF graph containing an instance of the \textit{milling
+      solid quantity output} relation.
+    }
+    {fig:rdf-graph}
+
+\todo{Should we explain nodes and edges relative to the annotation ontology?
+(hasForTable, hasForRow, etc.) Should we explain fuzzy sets?} We're now ready
+to introduce the SPARQL query implementing this integrity constraint, which you
+can see in \autoref{lst:sparql-query}.
+
+\begin{minipage}{\textwidth}
+\begin{lstlisting}[label={lst:sparql-query},
+                   caption={A SPARQL query implementing an integrity
+                            constraint.}]
+SELECT ?relation ?solid_qty ?liquid_qty ?output_qty
+       ?docid ?doctitle ?tableid ?tabletitle ?rownum
+WHERE {
+?doc anno:hasForID ?docid ;
+     dc:title ?doctitle ;
+     anno:hasTable ?table .
+
+?table anno:hasForID ?tableid ;
+       dc:title ?tabletitle ;
+       anno:hasForRow ?row .
+
+?row anno:hasForRowNumber ?rownum ;
+     anno:hasForRelation ?relation .
+
+?relation a bioraf:milling_solid_quantity_output_relation ;
+          core:hasAccessConcept ?solid ;
+          core:hasAccessConcept ?liquid ;
+          core:hasResultConcept ?output] .
+
+?solid a bioraf:biomass_quantity ;
+       anno:hasForFS [a anno:Scalar ;
+                      anno:hasForFuzzyElement /
+                      anno:hasForMaxKernel ?solid_qty] .
+
+?liquid a bioraf:water_quantity ;
+        anno:hasForFS [a anno:Scalar ;
+                       anno:hasForFuzzyElement /
+                       anno:hasForMaxKernel ?liquid_qty] .
+
+?output a bioraf:output_solid_constituent_quantity ;
+        anno:hasForFS [a anno:Scalar ;
+                       anno:hasForFuzzyElement /
+                       anno:hasForMaxKernel ?output_qty] .
+
+FILTER (xsd:float(?output_qty) != xsd:float(?solid_qty) + xsd:float(?liquid_qty))
+}
+\end{lstlisting}
+\end{minipage}
+
+A few things to note about this query:
+
+\begin{itemize}
+  \item A variable \code{relation} is selected, which is bound on line 15 to an
+    instance of the \textit{milling solid output quantity} relation, as per the
+    convention explained in \autoref{sec:integrity-constraints-as-sparql}.
+    Other variables are also selected for debugging purposes, such as the title
+    of the scientific publication and the table from which this relation
+    instance was extracted.
+
+  \item Nodes for water, biomass and output quantities are selected on lines
+    23, 28 and 33, respectively. These are the nodes painted in light blue on
+    \autoref{fig:rdf-graph}.
+
+  \item Line 35 discards instances of the \textit{milling solid output
+    quantity} relation that satisfy the equation $output = waterInput +
+    biomassInput$, selecting only those instances that are in violation with
+    the integrity constraint.
+\end{itemize}
 
 
 \subsection{Extending the ontology to represent constraints}
