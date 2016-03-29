@@ -425,7 +425,50 @@ A few things to note about this query:
 \end{itemize}
 
 
-\subsection{Extending the ontology to represent constraints}
+\subsection{Extending the ontology to represent integrity constraints and
+validation errors}
+
+We decided to extend the \atweb core ontology to make it possible to store
+integrity constraints in the ontology itself, and also to store validation
+errors after running an integrity constraint.
+
+
+\subsubsection{Integrity constraints}
+
+A new OWL class \code{Constraint} was added, along with the following
+properties:
+
+\begin{itemize}
+  \item \code{hasRelationClass}, which links an instance of the
+    \code{Constraint} class with a \code{Relation} subclass.
+
+  \item \code{hasSparqlQuery}, which links an instance of the \code{Constraint}
+    class with a string literal containing the SPARQL query associated to the
+    integrity constraint.
+\end{itemize}
+
+Both properties have cardinality constraints of exactly one.
+
+
+\subsubsection{Validation errors}
+
+Similarly, an OWL class \code{ConstraintValidationError} was added, along with
+the properties below:
+
+\begin{itemize}
+  \item \code{hasConstraint}, which links a \code{ConstraintValidationError}
+    instance with an instance of the \code{Constraint} class representing the
+    integrity constraint that produced the validation error.
+
+  \item \code{hasRelation}, which links an instance of the
+    \code{ConstraintValidationError} class with the relation violating the
+    integrity constraint (which is an instance of a \code{Relation} subclass.)
+\end{itemize}
+
+Both properties also have cardinality constraints of exactly one.
+
+
+\subsection{Optimizations}
 
 Pending.
 
